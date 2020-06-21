@@ -213,17 +213,24 @@ misc_system_settings() {
   echo "OK"
 }
 
-### change swap (int size in MB)
-###
+
+## change system swap size dependent on free space on /
+## swap on SD (/var/swap per default) only used after ZRAM swap full if that exists
+##
+##    change_swapsize(int size in MB)
+##
 change_swapsize() {
   local totalMemory
+
+
+  if ! is_raspbian; then return 0; fi
 
   totalMemory="$(grep MemTotal /proc/meminfo | awk '{print $2}')"
   if [ -z "$totalMemory" ]; then return 1; fi
 
   swap=$((2*totalMemory))
   minfree=$((2*swap))
-  free=$(df -hk /)
+  free=$(df -hk / | awk '/dev/ { print $4 }')
   if [ "$free" -ge "$minfree" ]; then
     size=$swap
   elif [ "$free" -ge "$swap" ]; then
@@ -231,11 +238,11 @@ change_swapsize() {
   else
     return 0
   fi
+  ((size/=1024))
+  echo "$(timestamp) [openHABian] Adjusting swap size to $size MB ... OK"
 
-  if is_raspbian; then
-    # shellcheck disable=SC2086
-    sed -i 's/^#*.*CONF_SWAPSIZE=.*/CONF_SWAPSIZE='"$size"'/g' /etc/dphys-swapfile
-  fi
+  # shellcheck disable=SC2086
+  sed -i 's/^#*.*CONF_SWAPSIZE=.*/CONF_SWAPSIZE='"$size"'/g' /etc/dphys-swapfile
 }
 
 # RPi specific function
